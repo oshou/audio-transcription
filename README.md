@@ -1,6 +1,8 @@
 # Audio Transcription
 
-## Prerequisite
+## Get started
+
+### prerequisite
 
 ```
 $ brew install direnv
@@ -8,14 +10,14 @@ $ brew install ffmpeg
 $ brew install portaudio
 ```
 
-## Get started
-
 ### audio-transcription-server
 
 ```
 $ cd audio-transcription-server
 $ cp -rp .env.local .env
 $ direnv allow
+$ poetry install --no-root
+$ poetry update pydub
 $ poetry run python server.py
 ```
 
@@ -25,7 +27,7 @@ $ poetry run python server.py
 $ cd ui
 $ cp -rp .env.local .env
 $ direnv allow
-$ npm install
+$ npm ci
 $ npm start
 ```
 
@@ -35,6 +37,25 @@ $ npm start
 $ cd audio-streamer
 $ cp -rp .env.local .env
 $ direnv allow
-$ npm install
+$ poetry install --no-root
 $ poetry run python streamer.py
+```
+
+## Sequence
+
+```mermaid
+sequenceDiagram
+  participant ASClient as AudioStreamer
+  participant AT as AudioTranscription
+  participant UI as UI
+  participant OpenAI-API as OpenAI-API
+
+  ASClient->>ASClient: マイクから音声キャプチャ
+  ASClient->>AT: 音声データ(byte)<br/>を配信
+  AT->>AT: 音声データ(byte)を音声ファイル(.ogg)に変換
+  AT->>OpenAI-API: 音声ファイル(.ogg)の<br/>テキスト化<br/>
+  OpenAI-API-->>AT:　
+  AT->>AT: 翻訳テキストデータ(string)を保存
+  AT->>UI: 翻訳テキストデータの配信
+  UI->>UI: UIリアルタイム更新
 ```

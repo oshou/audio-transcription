@@ -1,0 +1,13 @@
+# Dependency directories
+node_modules/
+
+# dotenv environment variable files
+.env
+
+# Environments
+.venv
+env/
+venv/
+
+# Cache
+__pycache__

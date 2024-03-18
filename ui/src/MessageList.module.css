@@ -1,0 +1,16 @@
+.messageList {
+  list-style-type: none;
+  padding: 0;
+  overflow-y: auto;
+}
+
+.messageItem {
+  background-color: #f0f0f0;
+  margin-left: 20px;
+  margin: 5px 0px 5px 20px;
+  padding: 10px;
+  border-radius: 5px;
+  text-align: left;
+  max-width: 90%;
+  word-wrap: break-word;
+}

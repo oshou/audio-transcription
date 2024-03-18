@@ -56,7 +56,6 @@ sequenceDiagram
   AT->>AT: 音声データ(byte)を音声ファイル(.ogg)に変換
   AT->>OpenAI-API: 音声ファイル(.ogg)の<br/>テキスト化<br/>
   OpenAI-API-->>AT:　
-  AT->>AT: 翻訳テキストデータ(string)を保存
   AT->>UI: 翻訳テキストデータの配信
   UI->>UI: UIリアルタイム更新
 ```

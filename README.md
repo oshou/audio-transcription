@@ -15,6 +15,7 @@ $ brew install portaudio
 ```
 $ cd audio-transcription-server
 $ cp -rp .env.local .env
+# Edit .env (e.g. OPENAI_API_KEY)
 $ direnv allow
 $ poetry install --no-root
 $ poetry update pydub

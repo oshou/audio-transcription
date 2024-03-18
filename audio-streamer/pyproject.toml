@@ -1,0 +1,15 @@
+[tool.poetry]
+name = "audio-streamer"
+version = "0.1.0"
+description = ""
+authors = ["oshou <adf1985adf@gmail.com>"]
+
+[tool.poetry.dependencies]
+python = "^3.12"
+websockets = "^12.0"
+pyaudio = "^0.2.14"
+asyncio = "^3.4.3"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

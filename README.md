@@ -6,6 +6,7 @@
 
 ```
 $ brew install direnv
+$ brew install poetry
 $ brew install ffmpeg
 $ brew install portaudio
 ```

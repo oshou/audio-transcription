@@ -60,13 +60,3 @@ sequenceDiagram
   AT->>UI: 文字起こしテキストデータの配信
   UI->>UI: UIリアルタイム更新
 ```
-  participant OpenAI-API as OpenAI-API
-
-  ASClient->>ASClient: マイクから音声キャプチャ
-  ASClient->>AT: 音声データ(byte)<br/>を配信
-  AT->>AT: 音声データ(byte)を音声ファイル(.ogg)に変換
-  AT->>OpenAI-API: 音声ファイル(.ogg)の<br/>テキスト化<br/>
-  OpenAI-API-->>AT:　
-  AT->>UI: 翻訳テキストデータの配信
-  UI->>UI: UIリアルタイム更新
-```

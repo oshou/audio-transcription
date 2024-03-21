@@ -51,15 +51,15 @@ $ poetry run python streamer.py
 sequenceDiagram
   participant ASClient as AudioStreamer
   participant AT as AudioTranscription
-  participant UI as UI
   participant OpenAI-API as OpenAI-API
+  participant UI as UI
 
   ASClient->>ASClient: マイクから音声キャプチャ
   ASClient->>AT: 音声データ(byte)<br/>を配信
   AT->>AT: 音声データ(byte)を音声ファイル(.ogg)に変換
   AT->>OpenAI-API: 音声ファイル(.ogg)の<br/>テキスト化<br/>
   OpenAI-API-->>AT:　
-  AT->>UI: 翻訳テキストデータの配信
+  AT->>UI: 文字起こしテキストデータの配信
   UI->>UI: UIリアルタイム更新
 ```
 

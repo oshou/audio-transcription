@@ -1,55 +1,123 @@
 import asyncio
 import os
+import re
 import tempfile
 import websockets
+from websockets.exceptions import ConnectionClosed
 from pydub import AudioSegment
-import io
 from whisperstream import atranscribe_streaming_simple
+from whisperstream.error import UnsupportedLanguageError
+from openai import OpenAI
+
+TRANSLATION_MODEL = "gpt-4"
+FROM_LANGUAGES_SUPPORTED = ["Japanese", "English"]
+TO_LANGUAGE = "Japanese"
+NOISY_MESSAGES_REGEXP = [
+    r"^\.$",
+    r"Thanks? you for watching",
+    "Your input seems incomplete. Please provide a full sentence for translation.",
+    "The provided text seems to be missing. Could you please provide a valid sentence?",
+    "Thank you so much for watching, and I'll see you in the next video.",
+    "視聴していただきありがとうございます",
+    "ご視聴ありがとうございました",
+    "ご覧いただきありがとうございます",
+]
 
 shared_state = {"output": []}
 event = asyncio.Event()
 
 
 async def audio_input_handler(websocket):
-    async for audio_bytes in websocket:
-        print("WS_AUDIO_INPUT_URL called")
+    print("WebSocket connected")
 
-        # conversion (bytes => audio-data(.ogg)
-        buffer = io.BytesIO()
-        audio_segment = AudioSegment(data=audio_bytes, sample_width=2, frame_rate=44100, channels=1)
-        audio_segment.export(buffer, format="ogg")
-        buffer.seek(0)  # バッファの先頭に戻る
-        with tempfile.NamedTemporaryFile(delete=False, mode="wb", suffix=".ogg") as tmpfile:
-            tmpfile.write(buffer.read())
+    client = OpenAI()
+
+    while True:
+        audio_bytes = await websocket.recv()
+
+        with tempfile.NamedTemporaryFile(
+            delete=False, suffix=".ogg", mode="wb"
+        ) as tmpfile:
+            audio_segment = AudioSegment(
+                data=audio_bytes, sample_width=2, frame_rate=44100, channels=1
+            )
+            audio_segment.export(tmpfile, format="ogg")
             tmpfile_path = tmpfile.name
 
-        # transcribe
         try:
-            language, gen = await atranscribe_streaming_simple(tmpfile_path)
-            async for segment in gen:
-                print("文字起こしテキスト:", segment.text)
-                shared_state["output"].append(segment.text)
-                event.set()  # 処理が完了したらイベントを通知
+            language, segments = await atranscribe_streaming_simple(tmpfile_path)
+            from_language = language.name
+
+            if from_language not in FROM_LANGUAGES_SUPPORTED:
+                continue
+
+            async for segment in segments:
+                text = segment["text"]
+
+                print(f"transcribed: [{from_language}] {text}")
+
+                if is_noisy_message(text):
+                    continue
+
+                if from_language != TO_LANGUAGE:
+                    translated_text = translate_text(
+                        client, text, from_language, TO_LANGUAGE
+                    )
+                else:
+                    translated_text = text
+
+                print(f"translated: [{from_language}] {translated_text}")
+
+                shared_state["output"].append(translated_text)
+                event.set()
+
             os.remove(tmpfile_path)
+        except UnsupportedLanguageError as e:
+            print(f"Unsupported Language: {e}")
+        except ConnectionClosed as e:
+            print(f"WebSocket disconnected: ${e}")
         except Exception as e:
-            print(f"サポートされていない言語が検出されました: {e}")
+            print(f"Internal server error: {e}")
 
 
 async def text_output_handler(websocket):
     try:
         while True:
-            # event wait start
             await event.wait()
 
-            # output text to ws-client
             for text in shared_state["output"]:
-                await websocket.send(text)  # 処理結果を送信
-            shared_state["output"].clear()  # 送信後は結果をクリア
+                await websocket.send(text)
 
-            # event reset
+            shared_state["output"].clear()
             event.clear()
-    except websockets.exceptions.ConnectionClosedError as e:
-        print(f"Connection closed with error: {e}")
+    except ConnectionClosed as e:
+        print(f"WebSocket disconnected: ${e}")
+
+
+def is_noisy_message(text):
+    return any(re.search(pattern, text) for pattern in NOISY_MESSAGES_REGEXP)
+
+
+def translate_text(client, text, from_language, to_language):
+    response = client.chat.completions.create(
+        model=TRANSLATION_MODEL,
+        messages=[
+            {
+                "role": "system",
+                # "content": (
+                #    f"You will be provided with a sentence in {from_language}",
+                #    f"and your task is to translate it into {to_language}.",
+                #    "If the sentence is incomplete, choose an empty string.",
+                # ),
+                "content": f"You will be provided with a sentence in {from_language}. and your task is to translate it into {to_language}. If the sentence is incomplete, choose an empty string.",
+            },
+            {"role": "user", "content": text},
+        ],
+        temperature=0.7,
+        max_tokens=64,
+        top_p=1,
+    )
+    return response.choices[0].message.content
 
 
 async def main():

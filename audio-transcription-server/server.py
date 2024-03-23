@@ -9,7 +9,6 @@ from whisperstream import atranscribe_streaming_simple
 from whisperstream.error import UnsupportedLanguageError
 from openai import OpenAI
 
-TRANSLATION_MODEL = "gpt-4"
 FROM_LANGUAGES_SUPPORTED = ["Japanese", "English"]
 TO_LANGUAGE = "Japanese"
 NOISY_MESSAGES_REGEXP = [
@@ -22,8 +21,12 @@ NOISY_MESSAGES_REGEXP = [
     "ご視聴ありがとうございました",
     "ご覧いただきありがとうございます",
 ]
+TRANSLATION_MODEL = "gpt-4"
+TRANSLATION_MAX_TOKENS = 64
+TRANSLATION_TEMPERATURE = 0.7
+TRANSLATION_TOP_P = 1
 
-shared_state = {"output": []}
+shared_state = {"translated": []}
 event = asyncio.Event()
 
 
@@ -35,12 +38,8 @@ async def audio_input_handler(websocket):
     while True:
         audio_bytes = await websocket.recv()
 
-        with tempfile.NamedTemporaryFile(
-            delete=False, suffix=".ogg", mode="wb"
-        ) as tmpfile:
-            audio_segment = AudioSegment(
-                data=audio_bytes, sample_width=2, frame_rate=44100, channels=1
-            )
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".ogg", mode="wb") as tmpfile:
+            audio_segment = AudioSegment(data=audio_bytes, sample_width=2, frame_rate=44100, channels=1)
             audio_segment.export(tmpfile, format="ogg")
             tmpfile_path = tmpfile.name
 
@@ -52,23 +51,21 @@ async def audio_input_handler(websocket):
                 continue
 
             async for segment in segments:
-                text = segment["text"]
+                transcribed_text = segment["text"]
 
-                print(f"transcribed: [{from_language}] {text}")
+                print(f"transcribed: [{from_language}] {transcribed_text}")
 
-                if is_noisy_message(text):
+                if is_noisy_message(transcribed_text):
                     continue
 
                 if from_language != TO_LANGUAGE:
-                    translated_text = translate_text(
-                        client, text, from_language, TO_LANGUAGE
-                    )
+                    translated_text = translate_text(client, transcribed_text, from_language, TO_LANGUAGE)
                 else:
-                    translated_text = text
+                    translated_text = transcribed_text
 
                 print(f"translated: [{from_language}] {translated_text}")
 
-                shared_state["output"].append(translated_text)
+                shared_state["translated"].append(translated_text)
                 event.set()
 
             os.remove(tmpfile_path)
@@ -85,10 +82,10 @@ async def text_output_handler(websocket):
         while True:
             await event.wait()
 
-            for text in shared_state["output"]:
+            for text in shared_state["translated"]:
                 await websocket.send(text)
 
-            shared_state["output"].clear()
+            shared_state["translated"].clear()
             event.clear()
     except ConnectionClosed as e:
         print(f"WebSocket disconnected: ${e}")
@@ -104,18 +101,17 @@ def translate_text(client, text, from_language, to_language):
         messages=[
             {
                 "role": "system",
-                # "content": (
-                #    f"You will be provided with a sentence in {from_language}",
-                #    f"and your task is to translate it into {to_language}.",
-                #    "If the sentence is incomplete, choose an empty string.",
-                # ),
-                "content": f"You will be provided with a sentence in {from_language}. and your task is to translate it into {to_language}. If the sentence is incomplete, choose an empty string.",
+                "content": (
+                    f"You will be provided with a sentence in {from_language}"
+                    f"and your task is to translate it into {to_language}."
+                    "If the sentence is incomplete, choose an empty string."
+                ),
             },
             {"role": "user", "content": text},
         ],
-        temperature=0.7,
-        max_tokens=64,
-        top_p=1,
+        temperature=TRANSLATION_TEMPERATURE,
+        max_tokens=TRANSLATION_MAX_TOKENS,
+        top_p=TRANSLATION_TOP_P,
     )
     return response.choices[0].message.content
 

@@ -10,16 +10,19 @@ from whisperstream.error import UnsupportedLanguageError
 from openai import OpenAI
 
 FROM_LANGUAGES_SUPPORTED = ["Japanese", "English"]
+TO_LANGUAGE = "English"
+# TO_LANGUAGE = "English"
 TO_LANGUAGE = "Japanese"
 NOISY_MESSAGES_REGEXP = [
-    r"^\.$",
-    r"Thanks? you for watching",
     "Your input seems incomplete. Please provide a full sentence for translation.",
     "The provided text seems to be missing. Could you please provide a valid sentence?",
-    "Thank you so much for watching, and I'll see you in the next video.",
-    "視聴していただきありがとうございます",
-    "ご視聴ありがとうございました",
-    "ご覧いただきありがとうございます",
+    r"^\.$",
+    r"(?i)thank?s?.*for watching",
+    r"(?i)If you liked this video.*please subscribe.*like button",
+    "PewDiePie",
+    "視聴.*ありがとう",
+    "ご覧.*ありがとう",
+    "はじめしゃちょー",
 ]
 AUDIO_FILE_FORMAT = "flac"
 TRANSLATION_MODEL = "gpt-4"
@@ -42,7 +45,7 @@ async def audio_input_handler(websocket):
         tmpfile_path = create_temporary_audio_file(audio_bytes, AUDIO_FILE_FORMAT)
 
         try:
-            language, segments = await atranscribe_streaming_simple(tmpfile_path, file_format)
+            language, segments = await atranscribe_streaming_simple(tmpfile_path)
             from_language = language.name
 
             if from_language not in FROM_LANGUAGES_SUPPORTED:
@@ -51,13 +54,19 @@ async def audio_input_handler(websocket):
             async for segment in segments:
                 transcribed_text = segment["text"]
 
+                print(f"[DEBUG] transcribed: [{from_language}] {transcribed_text}")
+
                 if is_noisy_message(transcribed_text):
                     continue
 
                 if from_language != TO_LANGUAGE:
-                    translated_text = translate_text(client, transcribed_text, from_language, TO_LANGUAGE)
+                    translated_text = translate_text(
+                        client, transcribed_text, from_language, TO_LANGUAGE
+                    )
                 else:
                     translated_text = transcribed_text
+
+                print(f"[DEBUG] translated: [{TO_LANGUAGE}] {translated_text}")
 
                 shared_state["translated"].append(translated_text)
                 event.set()
@@ -87,7 +96,9 @@ async def text_output_handler(websocket):
 
 def create_temporary_audio_file(audio_bytes, format):
     with tempfile.NamedTemporaryFile(delete=False, suffix=format, mode="wb") as tmpfile:
-        audio_segment = AudioSegment(data=audio_bytes, sample_width=2, frame_rate=44100, channels=1)
+        audio_segment = AudioSegment(
+            data=audio_bytes, sample_width=2, frame_rate=44100, channels=1
+        )
         audio_segment.export(tmpfile, format=format)
         return tmpfile.name
 
@@ -103,9 +114,10 @@ def translate_text(client, text, from_language, to_language):
             {
                 "role": "system",
                 "content": (
-                    f"You will be provided with a sentence in {from_language}"
-                    f"and your task is to translate it into {to_language}."
-                    "If the sentence is incomplete, choose an empty string."
+                    f"You will be provided with a sentence in {from_language}."
+                    + f"Your task is to translate it into {to_language}."
+                    + "If the sentence is incomplete, choose an empty string."
+                    + "The sentence provided is for an online meeting, so please make it as natural conversational text as possible"
                 ),
             },
             {"role": "user", "content": text},

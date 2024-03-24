@@ -21,6 +21,7 @@ NOISY_MESSAGES_REGEXP = [
     "ご視聴ありがとうございました",
     "ご覧いただきありがとうございます",
 ]
+AUDIO_FILE_FORMAT = "flac"
 TRANSLATION_MODEL = "gpt-4"
 TRANSLATION_MAX_TOKENS = 64
 TRANSLATION_TEMPERATURE = 0.7
@@ -38,13 +39,10 @@ async def audio_input_handler(websocket):
     while True:
         audio_bytes = await websocket.recv()
 
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".ogg", mode="wb") as tmpfile:
-            audio_segment = AudioSegment(data=audio_bytes, sample_width=2, frame_rate=44100, channels=1)
-            audio_segment.export(tmpfile, format="ogg")
-            tmpfile_path = tmpfile.name
+        tmpfile_path = create_temporary_audio_file(audio_bytes, AUDIO_FILE_FORMAT)
 
         try:
-            language, segments = await atranscribe_streaming_simple(tmpfile_path)
+            language, segments = await atranscribe_streaming_simple(tmpfile_path, file_format)
             from_language = language.name
 
             if from_language not in FROM_LANGUAGES_SUPPORTED:
@@ -53,8 +51,6 @@ async def audio_input_handler(websocket):
             async for segment in segments:
                 transcribed_text = segment["text"]
 
-                print(f"transcribed: [{from_language}] {transcribed_text}")
-
                 if is_noisy_message(transcribed_text):
                     continue
 
@@ -62,8 +58,6 @@ async def audio_input_handler(websocket):
                     translated_text = translate_text(client, transcribed_text, from_language, TO_LANGUAGE)
                 else:
                     translated_text = transcribed_text
-
-                print(f"translated: [{from_language}] {translated_text}")
 
                 shared_state["translated"].append(translated_text)
                 event.set()
@@ -89,6 +83,13 @@ async def text_output_handler(websocket):
             event.clear()
     except ConnectionClosed as e:
         print(f"WebSocket disconnected: ${e}")
+
+
+def create_temporary_audio_file(audio_bytes, format):
+    with tempfile.NamedTemporaryFile(delete=False, suffix=format, mode="wb") as tmpfile:
+        audio_segment = AudioSegment(data=audio_bytes, sample_width=2, frame_rate=44100, channels=1)
+        audio_segment.export(tmpfile, format=format)
+        return tmpfile.name
 
 
 def is_noisy_message(text):

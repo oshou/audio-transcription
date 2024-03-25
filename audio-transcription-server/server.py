@@ -10,7 +10,6 @@ from whisperstream.error import UnsupportedLanguageError
 from openai import OpenAI
 
 FROM_LANGUAGES_SUPPORTED = ["Japanese", "English"]
-TO_LANGUAGE = "English"
 # TO_LANGUAGE = "English"
 TO_LANGUAGE = "Japanese"
 NOISY_MESSAGES_REGEXP = [
@@ -53,23 +52,14 @@ async def audio_input_handler(websocket):
 
             async for segment in segments:
                 transcribed_text = segment["text"]
-
                 print(f"[DEBUG] transcribed: [{from_language}] {transcribed_text}")
 
-                if is_noisy_message(transcribed_text):
-                    continue
-
-                if from_language != TO_LANGUAGE:
-                    translated_text = translate_text(
-                        client, transcribed_text, from_language, TO_LANGUAGE
-                    )
-                else:
-                    translated_text = transcribed_text
-
+                translated_text = translate(client, transcribed_text, from_language, TO_LANGUAGE)
                 print(f"[DEBUG] translated: [{TO_LANGUAGE}] {translated_text}")
 
-                shared_state["translated"].append(translated_text)
-                event.set()
+                if transcribed_text != "":
+                    shared_state["translated"].append(translated_text)
+                    event.set()
 
             os.remove(tmpfile_path)
         except UnsupportedLanguageError as e:
@@ -96,15 +86,23 @@ async def text_output_handler(websocket):
 
 def create_temporary_audio_file(audio_bytes, format):
     with tempfile.NamedTemporaryFile(delete=False, suffix=format, mode="wb") as tmpfile:
-        audio_segment = AudioSegment(
-            data=audio_bytes, sample_width=2, frame_rate=44100, channels=1
-        )
+        audio_segment = AudioSegment(data=audio_bytes, sample_width=2, frame_rate=44100, channels=1)
         audio_segment.export(tmpfile, format=format)
         return tmpfile.name
 
 
 def is_noisy_message(text):
     return any(re.search(pattern, text) for pattern in NOISY_MESSAGES_REGEXP)
+
+
+def translate(client, text, from_language, to_language):
+    if is_noisy_message(text):
+        return ""
+
+    if from_language != TO_LANGUAGE:
+        return translate_text(client, text, from_language, to_language)
+    else:
+        return text
 
 
 def translate_text(client, text, from_language, to_language):

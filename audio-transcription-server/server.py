@@ -103,11 +103,7 @@ async def text_output_handler(websocket):
 def create_temporary_audio_file(audio_bytes, format):
     with tempfile.NamedTemporaryFile(delete=False, suffix=format, mode="wb") as tmpfile:
         audio_segment = AudioSegment(
-<<<<<<< HEAD
             data=audio_bytes, sample_width=AUDIO_SAMPLE_WIDTH, frame_rate=AUDIO_FRAME_RATE, channels=AUDIO_CHANNELS
-=======
-            data=audio_bytes, sample_width=2, frame_rate=44100, channels=1
->>>>>>> 7619af0bc90117dc98445954aec2ef03fc7ed3fa
         )
         audio_segment.export(tmpfile, format=format)
         return tmpfile.name

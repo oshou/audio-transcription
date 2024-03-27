@@ -17,11 +17,12 @@ TO_LANGUAGE = "Japanese"
 FROM_LANGUAGES_SUPPORTED = ["English", "Japanese"]
 
 NOISY_PATTERNS_REGEXP = [
-    "Your input seems incomplete. Please provide a full sentence for translation.",
-    "The provided text seems to be missing. Could you please provide a valid sentence?",
-    'Sorry, the sentence you provided is "English", which is not an actual sentence. Therefore, I cannot translate it into Japanese. Please provide a complete sentence.'
-    "You didn't provide any sentence to translate. Please provide a sentence."
-    r"^.$"
+    "The provided text seems to be missing.",
+    "Please provide a full sentence",
+    "Please provide a complete sentence",
+    "Please provide a sentence",
+    r"^.$",
+    r"^ .$",
     r"【.*】",
     r"^Dumb?.$",
     r"(?i)thank?s?.*for watching",

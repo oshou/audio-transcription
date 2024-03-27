@@ -19,11 +19,18 @@ FROM_LANGUAGES_SUPPORTED = ["English", "Japanese"]
 NOISY_PATTERNS_REGEXP = [
     "Your input seems incomplete. Please provide a full sentence for translation.",
     "The provided text seems to be missing. Could you please provide a valid sentence?",
-    r"^\.$",
+    'Sorry, the sentence you provided is "English", which is not an actual sentence. Therefore, I cannot translate it into Japanese. Please provide a complete sentence.'
+    "You didn't provide any sentence to translate. Please provide a sentence."
+    r"^.$"
     r"【.*】",
     r"^Dumb?.$",
     r"(?i)thank?s?.*for watching",
     r"(?i)If you liked this video.*please subscribe.*like button",
+    r'""',
+    "Silence.",
+    "Peace.",
+    "Bye.",
+    "Thank you.",
     "PewDiePie",
     "視聴.*ありがとう",
     "ご覧.*ありがとう",
@@ -69,10 +76,13 @@ async def audio_input_handler(websocket):
                 transcribed_text = segment["text"]
                 print(f"[DEBUG] transcribed: [{from_language}] {transcribed_text}")
 
-                translated_text = translate(client, transcribed_text, from_language, to_language)
+                translated_text = translate(
+                    client, transcribed_text, from_language, to_language
+                )
                 if translated_text == "":
                     continue
-                print(f"[DEBUG] translated: [{to_language}] {translated_text}")
+                elif translated_text != transcribed_text:
+                    print(f"[DEBUG] translated: [{to_language}] {translated_text}")
 
                 shared_state["translated"].append(translated_text)
                 event.set()
@@ -103,7 +113,10 @@ async def text_output_handler(websocket):
 def create_temporary_audio_file(audio_bytes, format):
     with tempfile.NamedTemporaryFile(delete=False, suffix=format, mode="wb") as tmpfile:
         audio_segment = AudioSegment(
-            data=audio_bytes, sample_width=AUDIO_SAMPLE_WIDTH, frame_rate=AUDIO_FRAME_RATE, channels=AUDIO_CHANNELS
+            data=audio_bytes,
+            sample_width=AUDIO_SAMPLE_WIDTH,
+            frame_rate=AUDIO_FRAME_RATE,
+            channels=AUDIO_CHANNELS,
         )
         audio_segment.export(tmpfile, format=format)
         return tmpfile.name
